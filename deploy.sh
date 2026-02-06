@@ -3,19 +3,26 @@ set -euo pipefail
 
 # deploy.sh — Deploy claude-code-setup into a project directory
 #
+# Sets up project-specific files: CLAUDE.md, settings.json, .worktreeinclude,
+# memory bank templates, GEMINI.md symlink, and .gitignore entries.
+#
+# Shared tooling (agents, commands, skills, rules) lives at ~/.claude/
+# and is set up by install.sh, not this script.
+#
 # Usage:
 #   ./deploy.sh <project-dir>          # Deploy to existing project
 #   ./deploy.sh <project-dir> --init   # Create project dir if needed
-#
-# Environment-aware: detects host vs devcontainer and adjusts symlink
-# targets accordingly.
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+BEGIN_MARKER="# BEGIN claude-code-setup (managed by deploy.sh)"
+END_MARKER="# END claude-code-setup"
 
 usage() {
     echo "Usage: $(basename "$0") <project-dir> [--init]"
     echo
-    echo "Deploy Claude Code setup (agents, commands, skills, mcp) into a project."
+    echo "Deploy Claude Code project templates into a project."
+    echo "Shared tooling is installed separately via install.sh."
     echo
     echo "Options:"
     echo "  --init    Create the project directory if it doesn't exist"
@@ -42,8 +49,6 @@ fi
 TARGET_DIR="$(cd "$TARGET_DIR" && pwd)"
 
 # --- Determine setup repo base path ---
-# In devcontainer: the setup repo is bind-mounted at /home/node/.claude-setup
-# On host: use the actual path to this script's repo
 if [[ "${DEVCONTAINER:-}" == "true" ]]; then
     SETUP_BASE="$HOME/.claude-setup"
     echo "Detected devcontainer environment"
@@ -56,41 +61,34 @@ echo "Setup repo: $SETUP_BASE"
 echo "Target:     $TARGET_DIR"
 echo
 
-# --- Helper: create symlink (removes existing if needed) ---
-make_link() {
-    local target="$1"  # what the symlink points to
-    local link="$2"    # the symlink path
-
-    # For relative targets, check existence relative to the link's directory
-    local check_path="$target"
-    if [[ "$target" != /* ]]; then
-        check_path="$(dirname "$link")/$target"
-    fi
-    if [[ ! -e "$check_path" ]]; then
-        echo "  Warning: symlink target $target does not exist, skipping"
-        return
-    fi
+# --- Migrate old-style symlinks ---
+migrated=0
+echo "Checking for old-style symlinks..."
+for dir in agents commands skills mcp; do
+    link="$TARGET_DIR/.claude/$dir"
     if [[ -L "$link" ]]; then
         rm "$link"
-    elif [[ -e "$link" ]]; then
-        echo "  Warning: $link exists and is not a symlink, skipping"
-        return
+        echo "  Removed old symlink: .claude/$dir"
+        migrated=$((migrated + 1))
     fi
-    ln -s "$target" "$link"
-    echo "  Linked: $(basename "$link") → $target"
-}
+done
+# Remove AGENTS.md symlink (no longer created)
+if [[ -L "$TARGET_DIR/AGENTS.md" ]]; then
+    rm "$TARGET_DIR/AGENTS.md"
+    echo "  Removed old symlink: AGENTS.md"
+    migrated=$((migrated + 1))
+fi
+if [[ $migrated -gt 0 ]]; then
+    echo "  Migrated $migrated old-style symlink(s)"
+else
+    echo "  None found"
+fi
+echo
 
 # --- Create .claude directory ---
 mkdir -p "$TARGET_DIR/.claude"
 
-# --- Symlink shared directories ---
-echo "Symlinking shared directories..."
-for dir in agents commands skills mcp; do
-    make_link "$SETUP_BASE/.claude/$dir" "$TARGET_DIR/.claude/$dir"
-done
-
 # --- Copy template files (only if they don't exist) ---
-echo
 echo "Copying template files..."
 
 if [[ ! -f "$TARGET_DIR/.claude/settings.json" ]]; then
@@ -113,9 +111,9 @@ if [[ ! -f "$TARGET_DIR/.worktreeinclude" ]]; then
 else
     echo "  Skipped: .worktreeinclude (already exists)"
 fi
-
-# --- Copy optional platform context files ---
 echo
+
+# --- Copy optional memory bank templates ---
 echo "Copying optional memory bank templates..."
 for ctx_file in "$SETUP_BASE"/CLAUDE-*.md; do
     [[ -f "$ctx_file" ]] || continue
@@ -127,55 +125,84 @@ for ctx_file in "$SETUP_BASE"/CLAUDE-*.md; do
         echo "  Skipped: $base (already exists)"
     fi
 done
-
-# --- Create intra-project symlinks for multi-agent support ---
 echo
+
+# --- Create GEMINI.md symlink ---
 echo "Creating multi-agent symlinks..."
-make_link "CLAUDE.md" "$TARGET_DIR/GEMINI.md"
-make_link "CLAUDE.md" "$TARGET_DIR/AGENTS.md"
-
-# --- Ensure deployed files are gitignored ---
+if [[ -L "$TARGET_DIR/GEMINI.md" ]]; then
+    echo "  OK: GEMINI.md (already linked)"
+elif [[ -e "$TARGET_DIR/GEMINI.md" ]]; then
+    echo "  Warning: GEMINI.md exists and is not a symlink — skipping"
+else
+    ln -s "CLAUDE.md" "$TARGET_DIR/GEMINI.md"
+    echo "  Linked: GEMINI.md → CLAUDE.md"
+fi
 echo
+
+# --- Update .gitignore with section markers ---
 echo "Updating .gitignore..."
-gitignore_add() {
-    local pattern="$1"
-    if [[ -f "$TARGET_DIR/.gitignore" ]]; then
-        grep -qxF "$pattern" "$TARGET_DIR/.gitignore" 2>/dev/null && return
-        echo "$pattern" >> "$TARGET_DIR/.gitignore"
+
+gitignore="$TARGET_DIR/.gitignore"
+
+# Desired managed entries
+MANAGED_ENTRIES="GEMINI.md
+CLAUDE-*.md"
+
+# Build the managed block
+MANAGED_BLOCK="$BEGIN_MARKER
+$MANAGED_ENTRIES
+$END_MARKER"
+
+if [[ -f "$gitignore" ]]; then
+    # Check if section markers already exist
+    if grep -qF "$BEGIN_MARKER" "$gitignore"; then
+        # Replace existing managed section
+        # Use awk to replace content between markers
+        awk -v begin="$BEGIN_MARKER" -v end="$END_MARKER" -v block="$MANAGED_BLOCK" '
+            $0 == begin { print block; skip=1; next }
+            $0 == end { skip=0; next }
+            !skip { print }
+        ' "$gitignore" > "$gitignore.tmp"
+        mv "$gitignore.tmp" "$gitignore"
+        echo "  Updated managed section"
     else
-        echo "$pattern" > "$TARGET_DIR/.gitignore"
+        # Remove any old raw entries that are now managed
+        # (entries without section markers from old deploy.sh)
+        temp="$gitignore.tmp"
+        cp "$gitignore" "$temp"
+        for pattern in '.claude/agents' '.claude/commands' '.claude/skills' '.claude/mcp' 'AGENTS.md'; do
+            grep -vxF "$pattern" "$temp" > "$temp.2" && mv "$temp.2" "$temp" || true
+        done
+        mv "$temp" "$gitignore"
+
+        # Append managed section
+        echo "" >> "$gitignore"
+        echo "$MANAGED_BLOCK" >> "$gitignore"
+        echo "  Added managed section"
     fi
-}
+else
+    echo "$MANAGED_BLOCK" > "$gitignore"
+    echo "  Created .gitignore with managed section"
+fi
+echo
 
-# Symlinked directories (external repo)
-gitignore_add '.claude/agents'
-gitignore_add '.claude/commands'
-gitignore_add '.claude/skills'
-gitignore_add '.claude/mcp'
-
-# Multi-agent symlinks
-gitignore_add 'GEMINI.md'
-gitignore_add 'AGENTS.md'
-
-# Memory bank files (project-specific, generated)
-gitignore_add 'CLAUDE-*.md'
+# --- Check if install.sh has been run ---
+if [[ ! -d "$HOME/.claude/rules" ]] || [[ -z "$(ls -A "$HOME/.claude/rules" 2>/dev/null)" ]]; then
+    echo "⚠ Warning: ~/.claude/rules/ is empty or missing."
+    echo "  Run install.sh to set up shared tooling (agents, commands, skills, rules):"
+    echo "  $SETUP_BASE/install.sh"
+    echo
+fi
 
 # --- Summary ---
-echo
 echo "=== Deploy complete ==="
-echo
-echo "Symlinked (shared):"
-for dir in agents commands skills mcp; do
-    if [[ -L "$TARGET_DIR/.claude/$dir" ]]; then
-        echo "  .claude/$dir → $(readlink "$TARGET_DIR/.claude/$dir")"
-    fi
-done
 echo
 echo "Templates (project-specific):"
 for f in .claude/settings.json CLAUDE.md .worktreeinclude; do
     [[ -f "$TARGET_DIR/$f" ]] && echo "  $f"
 done
 echo
-echo "Multi-agent symlinks:"
-[[ -L "$TARGET_DIR/GEMINI.md" ]] && echo "  GEMINI.md → $(readlink "$TARGET_DIR/GEMINI.md")" || true
-[[ -L "$TARGET_DIR/AGENTS.md" ]] && echo "  AGENTS.md → $(readlink "$TARGET_DIR/AGENTS.md")" || true
+echo "Symlinks:"
+[[ -L "$TARGET_DIR/GEMINI.md" ]] && echo "  GEMINI.md → $(readlink "$TARGET_DIR/GEMINI.md")"
+echo
+echo "Shared tooling is at ~/.claude/ (managed by install.sh)"
