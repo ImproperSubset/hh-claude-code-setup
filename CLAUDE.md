@@ -4,7 +4,6 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## AI Guidance
 
-* Ignore GEMINI.md and GEMINI-*.md files
 * To save main context space, for code searches, inspections, troubleshooting or analysis, use code-searcher subagent where appropriate - giving the subagent full context background for the task(s) you assign it.
 * ALWAYS read and understand relevant files before proposing code edits. Do not speculate about code you have not inspected. If the user references a specific file/path, you MUST open and inspect it before explaining or proposing fixes. Be rigorous and persistent in searching code for key facts. Thoroughly review the style, conventions, and abstractions of the codebase before implementing new features or abstractions.
 * After receiving tool results, carefully reflect on their quality and determine optimal next steps before proceeding. Use your thinking to plan and iterate based on this new information, and then take the best next action.
@@ -45,10 +44,6 @@ This project uses a structured memory bank system with specialized context files
 * **CLAUDE-temp.md** - Temporary scratch pad (only read when referenced)
 
 **Important:** Always reference the active context file first to understand what's currently being worked on and maintain session continuity.
-
-### Memory Bank System Backups
-
-When asked to backup Memory Bank System files, you will copy the core context files above and @.claude settings directory to directory @/path/to/backup-directory. If files already exist in the backup directory, you will overwrite them.
 
 ## Claude Code Official Documentation
 
