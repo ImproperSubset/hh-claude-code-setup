@@ -134,24 +134,31 @@ echo "Creating multi-agent symlinks..."
 make_link "CLAUDE.md" "$TARGET_DIR/GEMINI.md"
 make_link "CLAUDE.md" "$TARGET_DIR/AGENTS.md"
 
-# --- Ensure CLAUDE-*.md files are gitignored ---
+# --- Ensure deployed files are gitignored ---
 echo
-if [[ -f "$TARGET_DIR/.gitignore" ]]; then
-    if ! grep -q "^CLAUDE-\*.md$" "$TARGET_DIR/.gitignore" 2>/dev/null; then
-        echo "" >> "$TARGET_DIR/.gitignore"
-        echo "# Claude Code memory bank (project-specific, not committed)" >> "$TARGET_DIR/.gitignore"
-        echo "CLAUDE-*.md" >> "$TARGET_DIR/.gitignore"
-        echo "Added CLAUDE-*.md to .gitignore"
+echo "Updating .gitignore..."
+gitignore_add() {
+    local pattern="$1"
+    if [[ -f "$TARGET_DIR/.gitignore" ]]; then
+        grep -qxF "$pattern" "$TARGET_DIR/.gitignore" 2>/dev/null && return
+        echo "$pattern" >> "$TARGET_DIR/.gitignore"
     else
-        echo "CLAUDE-*.md already in .gitignore"
+        echo "$pattern" > "$TARGET_DIR/.gitignore"
     fi
-else
-    cat > "$TARGET_DIR/.gitignore" <<'GITIGNORE'
-# Claude Code memory bank (project-specific, not committed)
-CLAUDE-*.md
-GITIGNORE
-    echo "Created .gitignore with CLAUDE-*.md exclusion"
-fi
+}
+
+# Symlinked directories (external repo)
+gitignore_add '.claude/agents'
+gitignore_add '.claude/commands'
+gitignore_add '.claude/skills'
+gitignore_add '.claude/mcp'
+
+# Multi-agent symlinks
+gitignore_add 'GEMINI.md'
+gitignore_add 'AGENTS.md'
+
+# Memory bank files (project-specific, generated)
+gitignore_add 'CLAUDE-*.md'
 
 # --- Summary ---
 echo
@@ -170,5 +177,5 @@ for f in .claude/settings.json CLAUDE.md .worktreeinclude; do
 done
 echo
 echo "Multi-agent symlinks:"
-[[ -L "$TARGET_DIR/GEMINI.md" ]] && echo "  GEMINI.md → $(readlink "$TARGET_DIR/GEMINI.md")"
-[[ -L "$TARGET_DIR/AGENTS.md" ]] && echo "  AGENTS.md → $(readlink "$TARGET_DIR/AGENTS.md")"
+[[ -L "$TARGET_DIR/GEMINI.md" ]] && echo "  GEMINI.md → $(readlink "$TARGET_DIR/GEMINI.md")" || true
+[[ -L "$TARGET_DIR/AGENTS.md" ]] && echo "  AGENTS.md → $(readlink "$TARGET_DIR/AGENTS.md")" || true
