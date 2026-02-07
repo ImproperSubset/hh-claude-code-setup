@@ -19,13 +19,15 @@ BEGIN_MARKER="# BEGIN claude-code-setup (managed by deploy.sh)"
 END_MARKER="# END claude-code-setup"
 
 usage() {
-    echo "Usage: $(basename "$0") <project-dir> [--init]"
+    echo "Usage: $(basename "$0") <project-dir> [options]"
     echo
     echo "Deploy Claude Code project templates into a project."
     echo "Shared tooling is installed separately via install.sh."
     echo
     echo "Options:"
-    echo "  --init    Create the project directory if it doesn't exist"
+    echo "  --init         Create the project directory if it doesn't exist"
+    echo "  --cloudflare   Include Cloudflare context files"
+    echo "  --convex       Include Convex context files"
     exit 1
 }
 
@@ -33,8 +35,18 @@ usage() {
 [[ $# -lt 1 ]] && usage
 
 TARGET_DIR="$1"
+shift
 INIT=false
-[[ "${2:-}" == "--init" ]] && INIT=true
+INCLUDE_CLOUDFLARE=false
+INCLUDE_CONVEX=false
+for arg in "$@"; do
+    case "$arg" in
+        --init) INIT=true ;;
+        --cloudflare) INCLUDE_CLOUDFLARE=true ;;
+        --convex) INCLUDE_CONVEX=true ;;
+        *) echo "Unknown option: $arg"; usage ;;
+    esac
+done
 
 # --- Resolve target directory ---
 if [[ ! -d "$TARGET_DIR" ]]; then
@@ -113,19 +125,33 @@ else
 fi
 echo
 
-# --- Copy optional memory bank templates ---
-echo "Copying optional memory bank templates..."
-for ctx_file in "$SETUP_BASE"/CLAUDE-*.md; do
-    [[ -f "$ctx_file" ]] || continue
-    base="$(basename "$ctx_file")"
+# --- Copy optional context files (only when flags are set) ---
+copy_context_file() {
+    local file="$1"
+    local base
+    base="$(basename "$file")"
     if [[ ! -f "$TARGET_DIR/$base" ]]; then
-        cp "$ctx_file" "$TARGET_DIR/$base"
+        cp "$file" "$TARGET_DIR/$base"
         echo "  Copied: $base"
     else
         echo "  Skipped: $base (already exists)"
     fi
-done
-echo
+}
+
+if $INCLUDE_CLOUDFLARE || $INCLUDE_CONVEX; then
+    echo "Copying optional context files..."
+    if $INCLUDE_CLOUDFLARE; then
+        for f in "$SETUP_BASE"/CLAUDE-cloudflare*.md; do
+            [[ -f "$f" ]] && copy_context_file "$f"
+        done
+    fi
+    if $INCLUDE_CONVEX; then
+        for f in "$SETUP_BASE"/CLAUDE-convex*.md; do
+            [[ -f "$f" ]] && copy_context_file "$f"
+        done
+    fi
+    echo
+fi
 
 # --- Create GEMINI.md symlink ---
 echo "Creating multi-agent symlinks..."

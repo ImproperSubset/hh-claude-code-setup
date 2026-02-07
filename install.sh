@@ -176,6 +176,7 @@ echo
 
 # --- Commands ---
 echo "Commands:"
+mkdir -p "$CLAUDE_DIR/commands"
 for cmd_dir in "$SETUP_BASE/.claude/commands"/*/; do
     [[ -d "$cmd_dir" ]] || continue
     cmd_name="$(basename "$cmd_dir")"
