@@ -8,32 +8,20 @@ color: green
 
 # CLI Passthrough Agent
 
-Execute the Gemini CLI command with the user's prompt. Use appropriate shell based on platform:
-
-## Platform Detection
-
-First, detect the platform and choose the shell:
-- **macOS (darwin)**: Use `zsh -i -c` (if gemini alias in ~/.zshrc) or direct `gemini` command
-- **Linux**: Use `bash -i -c` (if gemini alias in ~/.bashrc) or direct `gemini` command
+Execute the Gemini CLI command with the user's prompt, filtering output to only the final response.
 
 ## Execution (timeout: 120000ms)
 
-**Direct command (preferred if gemini is in PATH):**
+Run the command and extract only the response (no stats or metadata):
 
 ```bash
-gemini -p "USER_PROMPT" --output-format json
+gemini -p "USER_PROMPT" --output-format json 2>/dev/null | jq -r '.response'
 ```
 
-**For macOS (if gemini needs shell config):**
+If `gemini` is not in PATH, use an interactive shell:
 
 ```bash
-zsh -i -c "gemini -p 'USER_PROMPT' --output-format json"
+bash -i -c 'gemini -p "USER_PROMPT" --output-format json 2>/dev/null | jq -r ".response"'
 ```
 
-**For Linux (if gemini needs shell config):**
-
-```bash
-bash -i -c "gemini -p 'USER_PROMPT' --output-format json"
-```
-
-Substitute USER_PROMPT with the input, execute, return only raw output.
+Substitute USER_PROMPT with the input, execute, return only the extracted response text.

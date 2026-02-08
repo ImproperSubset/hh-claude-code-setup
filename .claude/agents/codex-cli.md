@@ -8,39 +8,20 @@ color: blue
 
 # CLI Passthrough Agent
 
-Execute the Codex CLI command with the user's prompt. Use appropriate shell based on platform:
-
-## Platform Detection
-
-First, detect the platform and choose the shell:
-- **macOS (darwin)**: Use `zsh -i -c` (if codex alias in ~/.zshrc) or direct `codex` command
-- **Linux**: Use `bash -i -c` (if codex alias in ~/.bashrc) or direct `codex` command
-- **Windows**: Use `powershell -Command` or direct `codex` command
+Execute the Codex CLI command with the user's prompt, filtering output to only the final response.
 
 ## Execution (timeout: 120000ms)
 
-**Direct command (preferred if codex is in PATH):**
+Run the command and extract only the agent's response (no reasoning or tool output):
 
 ```bash
-codex -p readonly exec "USER_PROMPT" --json
+codex -p readonly exec "USER_PROMPT" --json 2>/dev/null | jq -s '[.[] | select(.type == "item.completed" and .item.type == "agent_message") | .item.text] | join("\n")'
 ```
 
-**For macOS (if codex needs shell config):**
+If `codex` is not in PATH, use an interactive shell:
 
 ```bash
-zsh -i -c "codex -p readonly exec 'USER_PROMPT' --json"
+bash -i -c 'codex -p readonly exec "USER_PROMPT" --json 2>/dev/null | jq -s '"'"'[.[] | select(.type == "item.completed" and .item.type == "agent_message") | .item.text] | join("\n")'"'"''
 ```
 
-**For Linux (if codex needs shell config):**
-
-```bash
-bash -i -c "codex -p readonly exec 'USER_PROMPT' --json"
-```
-
-**For Windows (PowerShell):**
-
-```powershell
-powershell -Command "codex -p readonly exec 'USER_PROMPT' --json"
-```
-
-Substitute USER_PROMPT with the input, execute, return only raw output.
+Substitute USER_PROMPT with the input, execute, return only the extracted response text.
