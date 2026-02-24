@@ -183,6 +183,11 @@ for cmd_dir in "$SETUP_BASE/.claude/commands"/*/; do
     # Symlink the entire subdirectory (each command is its own dir)
     make_link "${cmd_dir%/}" "$CLAUDE_DIR/commands/$cmd_name"
 done
+# Also symlink top-level command .md files (e.g., code-review.md → /code-review)
+for cmd_file in "$SETUP_BASE/.claude/commands"/*.md; do
+    [[ -f "$cmd_file" ]] || continue
+    make_link "$cmd_file" "$CLAUDE_DIR/commands/$(basename "$cmd_file")"
+done
 echo
 
 # --- Summary ---
