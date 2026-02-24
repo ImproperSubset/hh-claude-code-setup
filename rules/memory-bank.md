@@ -28,6 +28,8 @@ The auto memory file at `~/.claude/projects/.../memory/MEMORY.md` auto-loads int
 
 Keep it concise - it counts against the system prompt. Link to detailed files rather than duplicating content.
 
+**Trimming rule:** When removing content from `MEMORY.md` to stay under the 200-line limit, move the removed content to the appropriate `CLAUDE-*.md` file (e.g., resolved troubleshooting → `CLAUDE-troubleshooting.md`, patterns → `CLAUDE-patterns.md`, decisions → `CLAUDE-decisions.md`). Never discard knowledge — relocate it.
+
 ## Relationship to Brain
 
 The brain (`~/.brain/`) holds cross-project knowledge. The project memory bank holds project-specific knowledge. Do not duplicate between them. If something is only relevant to this project, it belongs here. If it's useful across projects, it belongs in the brain.
