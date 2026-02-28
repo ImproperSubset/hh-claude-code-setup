@@ -19,7 +19,7 @@ Perform a multi-AI code review of the current codebase changes.
 
 5. **Launch review-triage agent** with the list of review file paths — it reads all review files, verifies each finding against actual code and Context7 documentation, and writes `docs/review/TRIAGE-{timestamp}.md`
 
-6. **Present the triage report path and summary stats VERBATIM:**
+6. **Present the triage report path, summary stats, and key findings VERBATIM:**
 
 ```
 ## Code Review Complete
@@ -28,11 +28,25 @@ Perform a multi-AI code review of the current codebase changes.
 
 **Summary:** {stats from triage agent}
 
+### Verified Findings
+
+{For each verified CRITICAL or HIGH finding, one bullet:}
+- **[CRITICAL/HIGH]** {one-line description} — `{file}:{line}`
+
+{For each verified MEDIUM finding, one bullet:}
+- **[MEDIUM]** {one-line description} — `{file}:{line}`
+
+{For each verified LOW finding, one bullet:}
+- **[LOW]** {one-line description} — `{file}:{line}`
+
+{If any findings were dismissed:}
+### Dismissed: {count} finding(s) verified-false
+
 **Source reviews:**
 - `{codex_file}`
 - `{code-searcher_file}`
 
-To view the full triage report: `cat {TRIAGE_FILE_PATH}`
+Full triage report: `cat {TRIAGE_FILE_PATH}`
 ```
 
 7. **STOP. Do not editorialize, soften, dismiss, or add reassuring commentary about the findings.** Do not say "the code looks good overall", "most issues are minor", "nothing critical to worry about", or similar. The triage report is the deliverable. Relay it and stop.

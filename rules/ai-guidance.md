@@ -10,7 +10,7 @@
 * NEVER proactively create documentation files (*.md) unless explicitly requested.
 * Clean up any temporary files at the end of a task.
 * When you update core context files, also update the memory bank.
-* When asked to commit, exclude CLAUDE-*.md memory bank files. Never delete these files.
+* When asked to commit, include CLAUDE-*.md memory bank files (they are tracked in git).
 * Do not jump into implementation unless clearly instructed. When intent is ambiguous, default to research and recommendations.
 * Use code-searcher subagent for code searches, inspections, and analysis to save main context space.
 
