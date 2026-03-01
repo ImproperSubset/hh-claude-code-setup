@@ -20,7 +20,9 @@ Perform a multi-AI code review of the current codebase changes.
 
 5. **Launch review-triage agent** with the list of review file paths — it reads all review files, verifies each finding against actual code and Context7 documentation, and writes `docs/review/TRIAGE-{timestamp}.md`
 
-6. **Present the triage report path, summary stats, and key findings VERBATIM:**
+6. **Read the triage report yourself** — `cat {TRIAGE_FILE_PATH}` — and understand each finding.
+
+7. **Present the results and your analysis:**
 
 ```
 ## Code Review Complete
@@ -31,20 +33,27 @@ Perform a multi-AI code review of the current codebase changes.
 
 ### Verified Findings
 
-{For each verified CRITICAL or HIGH finding, one bullet:}
-- **[CRITICAL/HIGH]** {one-line description} — `{file}:{line}`
-
-{For each verified MEDIUM finding, one bullet:}
-- **[MEDIUM]** {one-line description} — `{file}:{line}`
-
-{For each verified LOW finding, one bullet:}
-- **[LOW]** {one-line description} — `{file}:{line}`
+{For each verified finding, one bullet with severity and description:}
+- **[SEVERITY]** {one-line description} — `{file}:{line}`
 
 {If any findings were dismissed:}
 ### Dismissed: {count} finding(s) verified-false
 
 {If any findings were auto-dismissed:}
 ### Auto-dismissed: {count} finding(s) from known patterns
+
+### Analysis
+
+{For each verified finding, provide a 2-3 sentence assessment:}
+- What is the real-world impact?
+- How urgent is it given the current state of the project?
+- If you believe a finding is less important than its severity suggests,
+  you MUST explain why with specific evidence (e.g., "no users yet",
+  "guarded by X upstream", "S3 lifecycle covers this"). Vague dismissals
+  like "minor issue" or "low risk in practice" are not acceptable.
+
+{If you see patterns across findings (e.g., "3 of 5 findings stem from
+the legacy migration gap"), call that out.}
 
 **Source reviews:**
 - `{gemini_file}`
@@ -53,4 +62,4 @@ Perform a multi-AI code review of the current codebase changes.
 Full triage report: `cat {TRIAGE_FILE_PATH}`
 ```
 
-7. **STOP. Do not editorialize, soften, dismiss, or add reassuring commentary about the findings.** Do not say "the code looks good overall", "most issues are minor", "nothing critical to worry about", or similar. The triage report is the deliverable. Relay it and stop.
+8. **Do not soften or reassure.** Do not say "the code looks good overall", "most issues are minor", or "nothing critical to worry about". Present your analysis honestly — if something looks bad, say so. If you think a finding is wrong, argue your case with evidence.
