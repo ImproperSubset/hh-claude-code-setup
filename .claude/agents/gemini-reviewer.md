@@ -86,18 +86,19 @@ INVOKER CONTEXT (UNVERIFIED — investigate independently):
 Run this EXACT command. Do NOT modify the model name, flags, or structure:
 
 ```bash
-gemini --model gemini-3.1-pro-preview -y "$(cat docs/review/tmp-gemini-prompt.txt)" --output-format json 2>/dev/null | jq -r '.response'
+gemini --model gemini-3.1-pro-preview -y "$(cat docs/review/tmp-gemini-prompt.txt)" 2>&1
 ```
 
 If `gemini` is not in PATH, wrap with `bash -i -c`:
 
 ```bash
-bash -i -c 'gemini --model gemini-3.1-pro-preview -y "$(cat docs/review/tmp-gemini-prompt.txt)" --output-format json 2>/dev/null | jq -r ".response"'
+bash -i -c 'gemini --model gemini-3.1-pro-preview -y "$(cat docs/review/tmp-gemini-prompt.txt)" 2>&1'
 ```
 
 **RULES — violating any of these produces wrong results:**
 - Model MUST be `gemini-3.1-pro-preview` — do NOT substitute other models
 - Do NOT add `-p`/`--prompt` — that disables agentic mode (Gemini can't read files)
+- Do NOT add `--output-format json` or pipe to `jq` — agentic mode streams interactively and the json pipe hangs
 - The prompt is a POSITIONAL argument after `-y`, not a flag value
 - If the command fails, retry the SAME command — do NOT change the model or flags
 - Set a 10-minute timeout (Gemini agentic mode is slow)
