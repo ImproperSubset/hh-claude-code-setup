@@ -1,9 +1,11 @@
 ---
 name: gemini-reviewer
-description: "Harsh Gemini code reviewer. Writes severity-tagged findings to docs/review/gemini-{timestamp}.md. Launched by /code-review skill."
+description: "Harsh Gemini code reviewer. Writes severity-tagged findings to docs/review/gemini-{timestamp}.md. Launched by /hh-code-review skill."
 tools: Bash, Write, Read, Glob, Grep
 model: sonnet
 color: green
+skills:
+  - dynamodb-patterns
 ---
 
 # Gemini Code Reviewer Agent

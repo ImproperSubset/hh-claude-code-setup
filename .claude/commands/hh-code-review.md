@@ -11,7 +11,7 @@ Perform a multi-AI code review of the current codebase changes.
 2. **Prepare** — `mkdir -p docs/review`
 
 3. **Launch two reviewer agents in parallel** (both in a single message):
-   - **codex-reviewer**: Task tool with `name: "codex-reviewer"` — provide REVIEW_SCOPE and any invoker context (marked UNVERIFIED)
+   - **gemini-reviewer**: Task tool with `name: "gemini-reviewer"` — provide REVIEW_SCOPE and any invoker context (marked UNVERIFIED)
    - **code-searcher-reviewer**: Task tool with `name: "code-searcher-reviewer"` — provide REVIEW_SCOPE, changed file list, diff content, and any invoker context (marked UNVERIFIED)
    - Each agent writes its findings to `docs/review/{agent}-{timestamp}.md`
 
@@ -43,7 +43,7 @@ Perform a multi-AI code review of the current codebase changes.
 ### Dismissed: {count} finding(s) verified-false
 
 **Source reviews:**
-- `{codex_file}`
+- `{gemini_file}`
 - `{code-searcher_file}`
 
 Full triage report: `cat {TRIAGE_FILE_PATH}`
