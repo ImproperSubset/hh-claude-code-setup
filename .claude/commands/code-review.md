@@ -3,16 +3,17 @@ Perform a multi-AI code review of the current codebase changes.
 ## What To Do
 
 1. **Assess the current state** — determine what code needs review:
-   - Check `git status` and `git diff --stat HEAD` for uncommitted changes
+   - If `$ARGUMENTS` is provided, use it as a custom scope (e.g., a file path, "last 3 commits", "server/lambda/auth/signup.ts")
+   - Otherwise, check `git status` and `git diff --stat HEAD` for uncommitted changes
    - Check if on a feature branch with commits ahead of main/master
    - Use conversation context to understand what the user has been working on
-   - Decide on REVIEW_SCOPE: `uncommitted`, `branch:BRANCH_NAME`, or `commit:SHA`
+   - Compose a **REVIEW_TARGET** — a human-readable description of what to review (e.g., "changes on branch feat/foo vs main", "uncommitted changes in 5 files", "changes in server/lambda/auth/signup.ts")
 
 2. **Prepare** — `mkdir -p docs/review`
 
 3. **Launch two reviewer agents in parallel** (both in a single message):
-   - **gemini-reviewer**: Task tool with `name: "gemini-reviewer"` — provide REVIEW_SCOPE and any invoker context (marked UNVERIFIED)
-   - **code-searcher-reviewer**: Task tool with `name: "code-searcher-reviewer"` — provide REVIEW_SCOPE, changed file list, diff content, and any invoker context (marked UNVERIFIED)
+   - **gemini-reviewer**: Task tool with `name: "gemini-reviewer"` — provide REVIEW_TARGET and any invoker context (marked UNVERIFIED). Gemini runs in agentic mode with full codebase access (reads files, runs git commands).
+   - **code-searcher-reviewer**: Task tool with `name: "code-searcher-reviewer"` — provide REVIEW_TARGET, changed file list, diff content, and any invoker context (marked UNVERIFIED)
    - Each agent writes its findings to `docs/review/{agent}-{timestamp}.md`
 
 4. **Wait for both to complete**, collect file paths from their responses
@@ -41,6 +42,9 @@ Perform a multi-AI code review of the current codebase changes.
 
 {If any findings were dismissed:}
 ### Dismissed: {count} finding(s) verified-false
+
+{If any findings were auto-dismissed:}
+### Auto-dismissed: {count} finding(s) from known patterns
 
 **Source reviews:**
 - `{gemini_file}`

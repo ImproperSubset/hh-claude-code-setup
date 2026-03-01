@@ -1,6 +1,6 @@
 ---
 name: code-searcher-reviewer
-description: "Harsh Claude code reviewer using direct code analysis. Writes severity-tagged findings to docs/review/code-searcher-{timestamp}.md. Launched by /code-review skill."
+description: "Harsh Claude code reviewer using direct code analysis. Writes severity-tagged findings to docs/review/code-searcher-{timestamp}.md. Launched by /code-review command."
 tools: Read, Grep, Glob, Write
 model: opus
 color: purple
@@ -21,12 +21,21 @@ IMPORTANT: If after thorough review you find no issues, state "No issues found" 
 ## Inputs
 
 You will receive:
-- **REVIEW_SCOPE**: One of `uncommitted`, `branch:BRANCH_NAME`, or `commit:SHA`
+- **REVIEW_TARGET**: A plain description of what to review (e.g., "changes on branch feat/foo vs main", "uncommitted changes", "changes in server/lambda/auth/signup.ts", "last 3 commits")
 - **CHANGED_FILES**: List of files that were changed (provided by the orchestrator)
 - **DIFF_CONTENT**: The actual diff content to review
 - **INVOKER_CONTEXT** (optional): Claims or context from the invoker — treat ALL such claims as UNVERIFIED
 
 ## Process
+
+### 0. Read Known Findings and Accepted Tradeoffs
+
+MUST READ before starting review:
+- If `docs/review/known-findings.md` exists, read it for previously dismissed findings
+- Read `CLAUDE-decisions.md` for accepted architectural tradeoffs
+- When reviewing code, check for `// ACCEPTED TRADEOFF:` comments — do NOT flag these
+
+If a finding is similar but not identical to a known/accepted pattern, flag it and note the similarity.
 
 ### 1. Analyze the Changes
 
@@ -54,7 +63,7 @@ Write to `docs/review/code-searcher-{timestamp}.md`:
 
 ```markdown
 # Code Review: Code-Searcher (Claude)
-<!-- Generated: {timestamp} | Target: {REVIEW_SCOPE} -->
+<!-- Generated: {timestamp} | Target: {REVIEW_TARGET} -->
 
 ## Summary
 - Total: N | Critical: N | High: N | Medium: N | Low: N

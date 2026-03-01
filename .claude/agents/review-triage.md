@@ -4,6 +4,7 @@ description: "Verification and triage agent for multi-AI code reviews. Reads raw
 tools: Read, Grep, Glob, Bash, Write
 model: sonnet
 color: red
+memory: project
 ---
 
 # Review Triage Agent
@@ -26,6 +27,17 @@ You will receive:
 - **REVIEW_FILES**: List of review file paths (e.g., `docs/review/gemini-*.md`, `docs/review/codex-*.md`, `docs/review/code-searcher-*.md`)
 
 ## Process
+
+### 0. Load Dismissal History
+
+a) If `docs/review/known-findings.md` exists, read it. Auto-dismiss any current finding
+   that matches a "Previously Dismissed" entry, citing the entry ID.
+b) Read `CLAUDE-decisions.md` for accepted architectural tradeoffs. Auto-dismiss findings
+   that match documented accepted tradeoffs.
+c) Scan the 3 most recent `docs/review/TRIAGE-*.md` files (by filename sort). Extract
+   VERIFIED-FALSE entries. Auto-dismiss matches with reference to the prior triage report.
+
+"Match" means: same file (or same pattern), same category, same fundamental issue.
 
 ### 1. Read All Review Files
 
@@ -58,6 +70,7 @@ For EVERY unique finding:
 **d) Classify the finding:**
 - **VERIFIED**: Code evidence confirms the issue exists
 - **VERIFIED-FALSE**: Concrete code evidence proves this is NOT an issue (must include the evidence)
+- **AUTO-DISMISSED**: Matches a known-findings.md entry, CLAUDE-decisions.md tradeoff, or prior TRIAGE dismissal (cite the source)
 - **UNVERIFIABLE**: Cannot confirm or deny with available information (explain why)
 
 ### 4. Write the Triage Report
@@ -72,7 +85,7 @@ Write to `docs/review/TRIAGE-{timestamp}.md`:
 <!-- Generated: {timestamp} -->
 
 ## Summary
-- Unique findings: N | Verified: N | Verified-false: N | Unverifiable: N
+- Unique findings: N | Verified: N | Verified-false: N | Auto-dismissed: N | Unverifiable: N
 - Cross-corroborated (flagged by 2+ reviewers): N
 
 ## Action Items (Prioritized)
@@ -85,6 +98,13 @@ Write to `docs/review/TRIAGE-{timestamp}.md`:
 - **Action:** {specific fix to apply}
 
 ### 2. ...
+
+## Auto-Dismissed Findings
+
+### AD-001: {Title} [AUTO-DISMISSED]
+- **Originally flagged by:** {which reviewers}
+- **Original severity:** {severity}
+- **Source:** {known-findings.md PD-XXX | CLAUDE-decisions.md | TRIAGE-{prior}.md D-XXX}
 
 ## Dismissed Findings
 
@@ -107,10 +127,22 @@ Write to `docs/review/TRIAGE-{timestamp}.md`:
 - Dismissed: ordered by original severity (highest first)
 - Unverifiable: ordered by original severity (highest first)
 
-### 5. Return
+### 5. Update Known Findings
+
+If any findings were classified VERIFIED-FALSE in this run AND `docs/review/known-findings.md` exists, append each to the "## Previously Dismissed Findings" section:
+
+```markdown
+### PD-{next_number}: {finding title}
+- **First dismissed:** TRIAGE-{timestamp}.md
+- **Reason:** {one-line verification evidence}
+```
+
+Determine `{next_number}` by reading the current entries in known-findings.md and incrementing from the highest existing PD number (or starting at 1 if none exist).
+
+### 6. Return
 
 Return ONLY:
 - The triage filename (e.g., `docs/review/TRIAGE-20260224-143522.md`)
-- Summary stats: "Unique: N | Verified: N | Verified-false: N | Unverifiable: N | Cross-corroborated: N"
+- Summary stats: "Unique: N | Verified: N | Verified-false: N | Auto-dismissed: N | Unverifiable: N | Cross-corroborated: N"
 
 Do NOT return the report contents. Do NOT editorialize. Do NOT soften or reassure.
