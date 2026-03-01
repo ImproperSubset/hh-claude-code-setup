@@ -83,7 +83,7 @@ INVOKER CONTEXT (UNVERIFIED — investigate independently):
 
 ### 2. Run Gemini
 
-Execute with a 10-minute timeout:
+Execute with a 10-minute timeout. **CRITICAL: Do NOT use `-p`/`--prompt` flag.** The `-p` flag runs Gemini in non-interactive headless mode where it cannot read files or run commands. Pass the prompt as a **positional argument** with `-y` (yolo) so Gemini runs in agentic mode with full tool access:
 
 ```bash
 gemini --model gemini-3.1-pro-preview -y "$(cat docs/review/tmp-gemini-prompt.txt)" --output-format json 2>/dev/null | jq -r '.response'
@@ -94,6 +94,8 @@ If `gemini` is not in PATH:
 ```bash
 bash -i -c 'gemini --model gemini-3.1-pro-preview -y "$(cat docs/review/tmp-gemini-prompt.txt)" --output-format json 2>/dev/null | jq -r ".response"'
 ```
+
+**Verify:** The correct invocation has NO `-p` flag. `-y` + positional prompt = agentic mode. `-p` = headless mode (WRONG).
 
 ### 3. Write the Review File
 
