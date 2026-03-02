@@ -11,12 +11,13 @@ Perform a multi-AI code review of the current codebase changes.
 
 2. **Prepare** — `mkdir -p docs/review`
 
-3. **Launch two reviewer agents in parallel** (both in a single message):
-   - **gemini-reviewer**: Task tool with `name: "gemini-reviewer"` — provide REVIEW_TARGET and any invoker context (marked UNVERIFIED). Gemini runs in agentic mode with full codebase access (reads files, runs git commands).
-   - **code-searcher-reviewer**: Task tool with `name: "code-searcher-reviewer"` — provide REVIEW_TARGET, changed file list, diff content, and any invoker context (marked UNVERIFIED)
+3. **Launch three reviewer agents in parallel** (all in a single message):
+   - **adversarial-reviewer**: Agent tool with `subagent_type: "adversarial-reviewer"` — provide REVIEW_TARGET, changed file list, diff content, and any invoker context (marked UNVERIFIED). Tries to break the code: attack surface, failure modes, race conditions, resource exhaustion.
+   - **security-reviewer**: Agent tool with `subagent_type: "security-reviewer"` — provide REVIEW_TARGET, changed file list, diff content, and any invoker context (marked UNVERIFIED). Deep security audit: auth, crypto, IAM, input validation, data exposure.
+   - **code-searcher-reviewer**: Agent tool with `subagent_type: "code-searcher-reviewer"` — provide REVIEW_TARGET, changed file list, diff content, and any invoker context (marked UNVERIFIED). Constructive review: correctness, test coverage, architecture fit, maintainability.
    - Each agent writes its findings to `docs/review/{agent}-{timestamp}.md`
 
-4. **Wait for both to complete**, collect file paths from their responses
+4. **Wait for all three to complete**, collect file paths from their responses
 
 5. **Launch review-triage agent** with the list of review file paths — it reads all review files, verifies each finding against actual code and Context7 documentation, and writes `docs/review/TRIAGE-{timestamp}.md`
 
@@ -56,7 +57,8 @@ Perform a multi-AI code review of the current codebase changes.
 the legacy migration gap"), call that out.}
 
 **Source reviews:**
-- `{gemini_file}`
+- `{adversarial_file}`
+- `{security_file}`
 - `{code-searcher_file}`
 
 Full triage report: `cat {TRIAGE_FILE_PATH}`
