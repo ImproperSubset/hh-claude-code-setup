@@ -23,10 +23,10 @@ Perform a multi-AI code review of the current codebase changes.
 
 6. **Read the triage report yourself** — `cat {TRIAGE_FILE_PATH}` — and understand each finding.
 
-7. **Present the results and your analysis:**
+7. **Present initial findings** — show the triage summary so the user sees what was found before fixes begin:
 
 ```
-## Code Review Complete
+## Code Review — Iteration 1
 
 **Triage report:** `{TRIAGE_FILE_PATH}`
 
@@ -43,25 +43,82 @@ Perform a multi-AI code review of the current codebase changes.
 {If any findings were auto-dismissed:}
 ### Auto-dismissed: {count} finding(s) from known patterns
 
-### Analysis
-
-{For each verified finding, provide a 2-3 sentence assessment:}
-- What is the real-world impact?
-- How urgent is it given the current state of the project?
-- If you believe a finding is less important than its severity suggests,
-  you MUST explain why with specific evidence (e.g., "no users yet",
-  "guarded by X upstream", "S3 lifecycle covers this"). Vague dismissals
-  like "minor issue" or "low risk in practice" are not acceptable.
-
-{If you see patterns across findings (e.g., "3 of 5 findings stem from
-the legacy migration gap"), call that out.}
-
 **Source reviews:**
 - `{adversarial_file}`
 - `{security_file}`
 - `{code-searcher_file}`
-
-Full triage report: `cat {TRIAGE_FILE_PATH}`
 ```
 
-8. **Do not soften or reassure.** Do not say "the code looks good overall", "most issues are minor", or "nothing critical to worry about". Present your analysis honestly — if something looks bad, say so. If you think a finding is wrong, argue your case with evidence.
+If there are **0 verified findings**, skip to step 12 (final summary) — nothing to fix.
+
+8. **Fix verified findings** — record `git rev-parse HEAD` as `PRE_FIX_REF` before making any changes. For each verified finding in the triage report:
+   - **CRITICAL/HIGH/MEDIUM:** Fix it. Read the file, understand context, apply the fix. Use the triage report's **Action** field as guidance but verify it makes sense before applying.
+   - **LOW:** Fix if straightforward. Defer only with a **strong, specific argument** (e.g., "recommended fix adds complexity that outweighs the risk", "this pattern will be replaced when feature X ships", "the test gap exists but the code path is already covered by integration tests"). Vague deferrals like "low priority" are not acceptable.
+   - **Test coverage gaps requiring heavy AWS mocking:** Defer when the finding is a coverage gap that would require complex, fragile mocks of AWS infrastructure (DynamoDB transactions, Cognito flows, S3 lifecycle, etc.). These are better addressed with integration tests or dedicated test infrastructure, not bolted-on unit test mocks that break on every refactor.
+   - **UNVERIFIABLE:** Defer with explanation.
+   - After fixing a batch of findings, **run the project test suite** to catch regressions early. Fix any test failures before proceeding.
+
+9. **Record deferred findings** — if any findings were deferred, write them to `docs/review/DEFERRED-{timestamp}.md`:
+
+```markdown
+# Deferred Findings
+<!-- Generated: {timestamp} | Iteration: {N} -->
+
+### DF-001: {Title} [SEVERITY]
+- **File:** `path/to/file.ext:LINE`
+- **Flagged by:** {reviewers}
+- **Triage report:** `{TRIAGE_FILE}`
+- **Reason for deferral:** {specific justification}
+```
+
+10. **Re-review loop** — determine changed files from fixes (`git diff --name-only {PRE_FIX_REF}`) and re-review:
+    - Run full review pipeline (steps 3-6) **scoped to changed files only** — pass the changed file list as the review scope.
+    - Evaluate triage results:
+      - **0 new verified findings → converged.** Go to step 11.
+      - **Only findings matching already-deferred items → converged.** Go to step 11.
+      - **New verified findings → fix and loop.** Present the new findings (step 7 format), fix them (step 8), record deferrals (step 9), and re-review again.
+    - **Safety cap: 3 fix iterations.** If not converged after 3, present remaining findings in the final summary and stop.
+    - Track iteration stats: `{iteration_number, verified_count, fixed_count, deferred_count, new_in_rereview}`.
+
+11. **Run final test suite** — after convergence, run the project test suite one final time. If tests fail, fix failures (counts as another iteration, still under the 3-iteration cap).
+
+12. **Present final summary:**
+
+```
+## Code Review Complete — Converged in {N} iteration(s)
+
+### Iteration History
+| # | Verified | Fixed | Deferred | New in re-review |
+|---|----------|-------|----------|------------------|
+| 1 | 7        | 5     | 2        | 1                |
+| 2 | 1        | 1     | 0        | 0                |
+
+### Fixes Applied
+- **[SEVERITY]** {title} — `{file}:{line}` — {one-line fix description}
+
+### Deferred Findings
+- **[LOW]** {title} — `{file}:{line}`
+  **Reason:** {specific justification}
+
+### Test Results
+{pass/fail summary}
+
+**Review artifacts:**
+- Triage reports: {list from each iteration}
+- Deferred: `docs/review/DEFERRED-{timestamp}.md` (if any)
+- Source reviews: {list from each iteration}
+```
+
+If there were 0 verified findings from the start, the summary simplifies to:
+
+```
+## Code Review Complete — Clean
+
+No verified findings. {dismissed_count} finding(s) dismissed, {auto_dismissed_count} auto-dismissed.
+
+**Review artifacts:**
+- Triage report: `{TRIAGE_FILE_PATH}`
+- Source reviews: {list}
+```
+
+13. **Do not soften or reassure.** Do not say "the code looks good overall", "most issues are minor", or "nothing critical to worry about". Present your analysis honestly — if something looks bad, say so. If you think a finding is wrong, argue your case with evidence.

@@ -163,6 +163,35 @@ else
     ln -s "CLAUDE.md" "$TARGET_DIR/GEMINI.md"
     echo "  Linked: GEMINI.md → CLAUDE.md"
 fi
+
+# --- Create devcontainer and script symlinks (from devcontainers repo) ---
+DEVCONTAINERS_DIR="$(cd "$(dirname "$SETUP_BASE")" && pwd)/claude-code-devcontainers"
+if [[ -d "$DEVCONTAINERS_DIR/.devcontainer" ]]; then
+    if [[ -L "$TARGET_DIR/.devcontainer" ]]; then
+        echo "  OK: .devcontainer (already linked)"
+    elif [[ -e "$TARGET_DIR/.devcontainer" ]]; then
+        echo "  Warning: .devcontainer exists and is not a symlink — skipping"
+    else
+        ln -s "$DEVCONTAINERS_DIR/.devcontainer" "$TARGET_DIR/.devcontainer"
+        echo "  Linked: .devcontainer → $DEVCONTAINERS_DIR/.devcontainer"
+    fi
+else
+    echo "  Skipped: .devcontainer (claude-code-devcontainers not found)"
+fi
+for script in shell.sh chrome.sh; do
+    if [[ -f "$DEVCONTAINERS_DIR/$script" ]]; then
+        if [[ -L "$TARGET_DIR/$script" ]]; then
+            echo "  OK: $script (already linked)"
+        elif [[ -e "$TARGET_DIR/$script" ]]; then
+            echo "  Warning: $script exists and is not a symlink — skipping"
+        else
+            ln -s "$DEVCONTAINERS_DIR/$script" "$TARGET_DIR/$script"
+            echo "  Linked: $script → $DEVCONTAINERS_DIR/$script"
+        fi
+    else
+        echo "  Skipped: $script (not found in claude-code-devcontainers)"
+    fi
+done
 echo
 
 # --- Update .gitignore with section markers ---
@@ -172,7 +201,9 @@ gitignore="$TARGET_DIR/.gitignore"
 
 # Desired managed entries
 MANAGED_ENTRIES="GEMINI.md
-CLAUDE-*.md"
+CLAUDE-*.md
+.env
+.devcontainer-ports"
 
 # Build the managed block
 MANAGED_BLOCK="$BEGIN_MARKER

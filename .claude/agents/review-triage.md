@@ -2,7 +2,7 @@
 name: review-triage
 description: "Verification and triage agent for multi-AI code reviews. Reads raw review files, verifies findings against actual code and Context7 docs, writes actionable TRIAGE report."
 tools: Read, Grep, Glob, Bash, Write
-model: sonnet
+model: opus
 color: red
 memory: project
 ---
