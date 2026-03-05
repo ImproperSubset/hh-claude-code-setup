@@ -203,7 +203,10 @@ gitignore="$TARGET_DIR/.gitignore"
 MANAGED_ENTRIES="GEMINI.md
 CLAUDE-*.md
 .env
-.devcontainer-ports"
+.devcontainer-ports
+.devcontainer
+shell.sh
+chrome.sh"
 
 # Build the managed block
 MANAGED_BLOCK="$BEGIN_MARKER
