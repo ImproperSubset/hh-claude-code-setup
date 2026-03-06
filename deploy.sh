@@ -201,7 +201,6 @@ gitignore="$TARGET_DIR/.gitignore"
 
 # Desired managed entries
 MANAGED_ENTRIES="GEMINI.md
-CLAUDE-*.md
 .env
 .devcontainer-ports
 .devcontainer
