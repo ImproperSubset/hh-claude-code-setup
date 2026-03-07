@@ -206,9 +206,28 @@ MANAGED_ENTRIES="GEMINI.md
 .devcontainer
 shell.sh
 chrome.sh
+
+# JS/TS
 node_modules/
 dist/
 build/
+.next/
+.svelte-kit/
+.turbo/
+coverage/
+*.tsbuildinfo
+.eslintcache
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+.mypy_cache/
+.pytest_cache/
+.ruff_cache/
+
+# OS/Editor
 .DS_Store
 *.log"
 
