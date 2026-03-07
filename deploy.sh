@@ -205,7 +205,12 @@ MANAGED_ENTRIES="GEMINI.md
 .devcontainer-ports
 .devcontainer
 shell.sh
-chrome.sh"
+chrome.sh
+node_modules/
+dist/
+build/
+.DS_Store
+*.log"
 
 # Build the managed block
 MANAGED_BLOCK="$BEGIN_MARKER
