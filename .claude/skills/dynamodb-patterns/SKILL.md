@@ -1,17 +1,33 @@
 ---
 name: dynamodb-patterns
-description: DynamoDB patterns, anti-patterns, and design philosophy. Use when writing or reviewing code that uses DynamoDB — transactions, conditional writes, TTL, BatchWrite, eventual convergence, and best-effort patterns.
+description: >
+  DynamoDB operational patterns — transactions, conditional writes, TTL, BatchWrite, counters,
+  retry logic, and eventual convergence. Use when writing or reviewing code that reads from or
+  writes to DynamoDB, including TransactWriteItems, BatchWriteCommand, ConditionExpression,
+  TTL handling, counter updates, or error handling for DynamoDB operations. Also use when
+  someone encounters TransactionCanceledException, UnprocessedItems, ConditionalCheckFailedException,
+  or counter drift issues.
 user-invocable: true
 ---
 
-# DynamoDB Patterns and Best Practices
+# DynamoDB Operational Patterns
 
-## Design Philosophy
+These patterns prevent the mistakes that keep recurring: counter drift from non-atomic
+operations, silent data loss from unhandled UnprocessedItems, and over-engineering that
+adds transactions where TTL or best-effort would suffice.
 
-DynamoDB is not a relational database. Two principles govern correct usage:
+## Step 1: Read project files first
 
-1. **Design for access patterns, not data structure.** Every key, index, and item shape exists to serve a specific query. If you can't name the access pattern, you don't need the item.
-2. **Embrace eventual convergence.** Not every operation needs ACID atomicity. DynamoDB provides TTL, conditional writes, and idempotent operations as building blocks for systems that converge to correct state over time — even when individual writes fail.
+Before writing or reviewing DynamoDB code, check:
+
+1. **`CLAUDE-patterns.md`** — established DynamoDB patterns for this project (key conventions,
+   sentinel ordering, retry patterns, atomic counter rules)
+2. **`CLAUDE-decisions.md`** — schema decisions and rationale (single-table design, entity
+   types, TTL strategy)
+3. **`~/.brain/systems/dynamodb-atomic-patterns.md`** — cross-project transaction patterns
+
+The project files document specific patterns that have been validated. Follow them rather
+than reinventing.
 
 ---
 
@@ -24,9 +40,7 @@ Use transactions when **any** of these apply:
 - A write depends on the current state of another item
 - Failure mid-sequence would leave orphaned or inconsistent data
 
-Use a **single conditional write** when:
-- Only one item is being modified
-- The condition is on the same item being written
+Use a **single conditional write** when only one item is being modified.
 
 ### When NOT to Use
 
@@ -38,55 +52,32 @@ Do NOT demand transactions when:
 
 ### Structure
 
-A single `TransactWriteItems` call can mix operations:
-
 ```typescript
 await ddb.send(new TransactWriteCommand({
-  ClientRequestToken: idempotencyKey, // prevents duplicate execution
+  ClientRequestToken: idempotencyKey,
   TransactItems: [
-    {
-      Put: {
-        TableName: 'Posts',
-        Item: newPost,
-        ConditionExpression: 'attribute_not_exists(PK)',
-      },
-    },
-    {
-      Update: {
-        TableName: 'Users',
-        Key: { PK: userId },
-        UpdateExpression: 'SET postCount = postCount + :one',
-        ConditionExpression: 'attribute_exists(PK)',
-        ExpressionAttributeValues: { ':one': 1 },
-      },
-    },
-    {
-      ConditionCheck: {
-        TableName: 'Servers',
-        Key: { PK: serverId },
-        ConditionExpression: '#status = :active',
-        ExpressionAttributeNames: { '#status': 'status' },
-        ExpressionAttributeValues: { ':active': 'active' },
-      },
-    },
+    { Put: { TableName, Item, ConditionExpression: 'attribute_not_exists(PK)' } },
+    { Update: { TableName, Key, UpdateExpression: 'SET postCount = postCount + :one',
+                ConditionExpression: 'attribute_exists(PK)',
+                ExpressionAttributeValues: { ':one': 1 } } },
+    { ConditionCheck: { TableName, Key,
+                        ConditionExpression: '#status = :active',
+                        ExpressionAttributeNames: { '#status': 'status' },
+                        ExpressionAttributeValues: { ':active': 'active' } } },
   ],
 }));
 ```
 
-Key points:
 - `ConditionCheck` asserts read-state without modifying the item
 - `ClientRequestToken` makes the transaction idempotent (valid for 10 minutes)
-- All items must be in the same AWS region
+- Use `ReturnValuesOnConditionCheckFailure: ALL_OLD` to get actual item state on failure
 
 ### Handling `TransactionCanceledException`
-
-When any condition fails, the entire transaction is rolled back. Inspect `CancellationReasons` to determine which item failed:
 
 ```typescript
 catch (error: unknown) {
   if (error instanceof Error && error.name === 'TransactionCanceledException') {
     const reasons = (error as any).CancellationReasons;
-    // Array matches TransactItems order — index 0 = first item, etc.
     reasons?.forEach((reason: any, i: number) => {
       if (reason.Code === 'ConditionalCheckFailed') {
         console.error(`Item ${i} condition failed`, reason.Item);
@@ -97,31 +88,53 @@ catch (error: unknown) {
 }
 ```
 
-Use `ReturnValuesOnConditionCheckFailure: ALL_OLD` on individual operations to get the actual item state in the cancellation reason, enabling smart conflict resolution.
+Always inspect `CancellationReasons` — the array matches `TransactItems` order.
 
 ### Idempotency via `ClientRequestToken`
 
-- Must be unique per logical operation (e.g., derive from request ID or content hash)
+- Must be unique per logical operation (derive from request ID or content hash)
 - DynamoDB deduplicates for 10 minutes — same token = same result, no re-execution
 - Always use when the caller might retry (API Gateway, Step Functions, SQS)
 
 ### Limits
 
-- **100 items** maximum per transaction
-- **25 items per table** maximum
+- **100 items** max per transaction, **25 per table**
 - All items must be **distinct** — no two operations on the same item
 - **4 MB** total request size
 
 ---
 
+## Counter + Item Atomicity
+
+Counter fields (e.g., `memberCount`) and the item they count MUST be in the same
+`TransactWriteCommand`. Never BatchWrite-delete items then separately update the counter —
+partial failures cause counter drift that's invisible and hard to repair.
+
+```typescript
+// CORRECT — atomic
+await client.send(new TransactWriteCommand({
+  TransactItems: [
+    { Delete: { TableName: TABLE, Key: membershipKey } },
+    { Update: { TableName: TABLE, Key: groupKey,
+                UpdateExpression: 'SET memberCount = memberCount - :one',
+                ExpressionAttributeValues: { ':one': 1 } } },
+  ],
+}));
+
+// WRONG — counter drifts if UpdateCommand fails
+await chunkedBatchWrite(client, TABLE, deleteRequests);
+await client.send(new UpdateCommand({ ... memberCount - N ... }));
+```
+
+---
+
 ## BatchWrite (`BatchWriteCommand`)
 
-### When BatchWrite Is the Right Choice
+### When to Use
 
-Use `BatchWriteCommand` instead of `TransactWriteItems` when:
-- The item count may exceed the 100-item transaction limit
-- You need throughput, not atomicity — BatchWrite is cheaper and faster
-- Idempotency is enforced at a different layer (e.g., a conditional-put lock item written before the batch)
+- Item count may exceed the 100-item transaction limit
+- You need throughput, not atomicity (1x WCU vs 2x for transactions)
+- Idempotency is enforced at a different layer
 - Partial failure is recoverable by retrying `UnprocessedItems`
 
 ### Key Differences from Transactions
@@ -129,251 +142,149 @@ Use `BatchWriteCommand` instead of `TransactWriteItems` when:
 | | TransactWriteItems | BatchWriteCommand |
 |---|---|---|
 | Atomicity | All-or-nothing | Best-effort, partial success possible |
-| ConditionExpression | Supported per item | **NOT supported** (DynamoDB limitation) |
-| Max items | 100 | 25 per call (but chainable) |
+| ConditionExpression | Supported per item | **NOT supported** |
+| Max items | 100 | 25 per call (chainable) |
 | Cost | 2x WCU per item | 1x WCU per item |
-| UnprocessedItems | N/A (atomic) | Must handle and retry |
 
-### Correct BatchWrite Pattern
+### Retry Pattern
 
 ```typescript
-// Chunk into groups of 25 (BatchWrite limit per call)
+const MAX_RETRIES = 3;
 for (let i = 0; i < items.length; i += 25) {
-  const batch = items.slice(i, i + 25);
-  const result = await ddb.send(new BatchWriteCommand({
-    RequestItems: { [tableName]: batch },
-  }));
-  // MUST handle unprocessed items — DynamoDB may throttle
-  if (result.UnprocessedItems?.[tableName]?.length) {
-    // Retry with exponential backoff
+  let requestItems = { [tableName]: items.slice(i, i + 25) };
+  for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+    const result = await client.send(new BatchWriteCommand({
+      RequestItems: requestItems,
+    }));
+    const unprocessed = result.UnprocessedItems?.[tableName];
+    if (!unprocessed?.length) break;
+    if (attempt === MAX_RETRIES) return internalServerError('BatchWrite exhausted');
+    requestItems = { [tableName]: unprocessed };
+    await new Promise(r => setTimeout(r, 100 * Math.pow(4, attempt)));
   }
 }
 ```
 
-### Anti-Pattern: Treating BatchWrite Like a Transaction
+Return `internalServerError` on exhaustion — never silently return partial data.
+
+### Sentinel-Last Ordering
+
+When deleting related items across multiple BatchWrite chunks, place the sentinel/index
+item **last** in the array. Chunks are not transactional across calls — if chunk N fails,
+chunks N+1..M are skipped. If the sentinel is deleted in an early chunk but later chunks
+fail, the operation becomes non-retryable because the sentinel no longer exists to discover
+remaining items.
 
 ```typescript
-// BAD — no ConditionExpression support, no atomicity guarantee
-// If you need atomicity, use TransactWriteItems instead
-await ddb.send(new BatchWriteCommand({ ... }));
-// Assuming all items were written — some may be in UnprocessedItems!
+const deleteRequests = [
+  ...childItems.map(key => ({ DeleteRequest: { Key: key } })),
+  { DeleteRequest: { Key: sentinelKey } }, // LAST — survives partial failure
+];
+await chunkedBatchWrite(client, table, deleteRequests);
 ```
 
 ---
 
 ## TTL and Eventual Deletion
 
-### How DynamoDB TTL Works
-
-- DynamoDB's TTL process runs as a background sweep — **deletion can lag up to 48 hours** after the TTL timestamp passes
-- Items with expired TTL are still physically present and returned by queries until DynamoDB sweeps them
-- TTL deletions do not consume write capacity units
-- TTL deletes are replicated to GSIs and streams
-
-### Application-Level TTL Checks Are Required
-
-Because TTL deletion lags, **application code must filter expired items**:
+- Deletion lags up to **48 hours** after TTL timestamp
+- **Application code must filter expired items** — don't assume DynamoDB has deleted them
+- TTL deletions don't consume WCU and replicate to GSIs/streams
 
 ```typescript
-// CORRECT — check TTL in application code
-const item = result.Item;
+// CORRECT — filter in application code or query
+FilterExpression: '#ttl > :now'
+// Or in application logic:
 if (item.ttl && item.ttl <= Math.floor(Date.now() / 1000)) {
   return notFound('Item expired');
 }
-
-// WRONG — assuming DynamoDB has already deleted expired items
-const item = result.Item; // May still exist hours after TTL!
-return item;
 ```
 
 ### TTL=0 as Logical Delete
 
-Setting `ttl = 0` (epoch zero = 1970-01-01) is a valid pattern for immediate logical expiry. The item is logically dead but physically present until DynamoDB sweeps it. This is cheaper and simpler than `DeleteCommand` when:
-- You want DynamoDB to handle physical cleanup asynchronously
-- Multiple items need "deletion" in a transaction (set TTL on all of them atomically, let DynamoDB sweep later)
-- You want TTL deletion to appear in DynamoDB Streams for downstream processing
-
-### Anti-Pattern: Flagging TTL-Based Deletion as a Bug
-
-```typescript
-// This is CORRECT — not a bug
-// Setting ttl=0 instead of deleting the item
-await ddb.send(new TransactWriteCommand({
-  TransactItems: items.map(key => ({
-    Update: {
-      Key: key,
-      UpdateExpression: 'SET #ttl = :zero',
-      ExpressionAttributeNames: { '#ttl': 'ttl' },
-      ExpressionAttributeValues: { ':zero': 0 },
-    },
-  })),
-}));
-// DynamoDB will physically delete these items eventually (up to 48h)
-```
-
-Do NOT flag this as "items not being deleted" — this is the intended design.
+Setting `ttl = 0` is valid for immediate logical expiry. Cheaper than `DeleteCommand` when
+multiple items need "deletion" atomically — set TTL in one transaction, let DynamoDB sweep
+later. Do NOT flag this as a bug.
 
 ---
 
 ## Eventual Convergence Patterns
 
-These patterns are **intentional architecture**, not bugs. They appear when immediate consistency is too expensive or impossible, and the system is designed to converge to correct state over time.
+These are **intentional architecture**, not bugs.
 
 ### Best-Effort + TTL Safety Net
 
-Write an auxiliary item best-effort. If the write fails, TTL on the item (or lack of the item) ensures the system converges:
-
 ```typescript
-// Main transaction — must succeed
-await ddb.send(new TransactWriteCommand({ TransactItems: [...] }));
-
-// Auxiliary write — best-effort, TTL is the safety net
-try {
-  await ddb.send(new PutCommand({ Item: indexRow }));
-} catch (e) {
-  // Log but don't fail — DynamoDB TTL will clean up if needed
-  console.warn('Best-effort index write failed:', e);
-}
+await ddb.send(new TransactWriteCommand({ TransactItems: [...] })); // must succeed
+try { await ddb.send(new PutCommand({ Item: indexRow })); }         // best-effort
+catch (e) { console.warn('Best-effort index write failed:', e); }
 ```
 
-This is correct when:
-- The auxiliary item is a convenience (index, cache) not a source of truth
-- TTL ensures stale or missing auxiliary items self-correct
-- The system does not depend on the auxiliary item being immediately present
+Correct when the auxiliary item is a convenience (index, cache), not a source of truth.
 
 ### Fire-and-Forget TTL Refresh
 
-When items have long TTL runways (e.g., 90 days), a single missed refresh is invisible:
-
 ```typescript
-// Fire-and-forget — do NOT await
 void refreshTTL(itemKey, newTTL).catch(() => {});
-// Lambda may terminate before this completes — that's OK
-// The 90-day runway means one missed refresh is invisible
 ```
 
-This is correct when:
-- The TTL runway is orders of magnitude longer than the refresh interval
-- Losing one refresh out of many is statistically insignificant
-- The caller should not block on a non-critical write
+Correct when the TTL runway (e.g., 90 days) is orders of magnitude longer than the
+refresh interval.
 
-### Self-Healing via Periodic Operations
+### Anti-Pattern: Over-Engineering Consistency
 
-Design operations that prune stale state as a side effect of normal work:
-
-```typescript
-// On each user activity, also clean up stale references
-for (const postId of livingPostIds) {
-  const exists = await checkPostExists(postId);
-  if (!exists) {
-    staleIds.push(postId);
-  }
-}
-if (staleIds.length > 0) {
-  await removeStaleIds(userId, staleIds);
-}
-```
-
-This is correct when:
-- The periodic operation runs frequently enough relative to the staleness window
-- Stale references cause no harm between cleanups (e.g., a failed lookup is retried or skipped)
-- The cleanup is idempotent
-
-### Anti-Pattern: Demanding Immediate Consistency Everywhere
-
-```typescript
-// BAD — over-engineering: transactional delete of a cache/index row
-// when TTL would clean it up automatically
-await ddb.send(new TransactWriteCommand({
-  TransactItems: [
-    { Delete: { Key: mainItem } },
-    { Delete: { Key: cacheItem } },  // TTL handles this — no transaction needed
-  ],
-}));
-```
-
-Not every related write needs to be in the same transaction. Ask: **what happens if this auxiliary write fails?** If the answer is "TTL cleans it up" or "the next read handles it," best-effort is the correct choice.
+Ask: **what happens if this auxiliary write fails?** If the answer is "TTL cleans it up"
+or "the next read handles it," best-effort is the correct choice.
 
 ---
 
 ## Conditional Writes
 
-### Always Use ConditionExpression When Assuming State
+Always use `ConditionExpression` on writes that assume item state:
 
 ```typescript
-// BAD — overwrites if item already exists
-await ddb.send(new PutCommand({ TableName: 'Posts', Item: post }));
-
-// GOOD — fails fast if item exists
 await ddb.send(new PutCommand({
-  TableName: 'Posts',
-  Item: post,
+  TableName, Item: post,
   ConditionExpression: 'attribute_not_exists(PK)',
 }));
 ```
 
-### Exception: BatchWrite Cannot Use ConditionExpression
-
-`BatchWriteCommand` does not support `ConditionExpression` — this is a DynamoDB limitation, not a code defect. When using BatchWrite, enforce idempotency at a different layer (e.g., a conditional-put lock item written before the batch begins).
+Exception: `BatchWriteCommand` cannot use `ConditionExpression` — enforce idempotency at a
+different layer (e.g., a conditional-put lock item written before the batch begins).
 
 ---
 
 ## Common Anti-Patterns
 
 ### Sequential writes with manual rollback
-
-```typescript
-// BAD — partial state if step 2 fails
-await ddb.send(new PutCommand({ TableName: 'Posts', Item: post }));
-try {
-  await ddb.send(new UpdateCommand({ TableName: 'Users', ... }));
-} catch {
-  // "rollback" — but what if THIS fails too?
-  await ddb.send(new DeleteCommand({ TableName: 'Posts', Key: postKey }));
-}
-```
-
-Fix: Use `TransactWriteItems` with both operations.
+Two+ independent writes where a catch block tries to undo the first on failure.
+Fix: single `TransactWriteItems`.
 
 ### Unguarded deletes in catch blocks
-
-```typescript
-// BAD — deletes without checking if the item was actually created in this request
-catch (error) {
-  await ddb.send(new DeleteCommand({ TableName: 'Posts', Key: postKey }));
-}
-```
-
-Fix: Rollback logic belongs inside the transaction, not in separate error handlers.
+Delete operations in error handlers without verifying the item was created by this request.
+Fix: rollback logic belongs inside the transaction.
 
 ### Not inspecting `CancellationReasons`
-
-```typescript
-// BAD — loses information about which condition failed
-catch (error) {
-  if (error.name === 'TransactionCanceledException') {
-    throw new Error('Transaction failed');
-  }
-}
-```
-
-Fix: Always inspect `CancellationReasons` to provide meaningful error messages and enable smart retry logic.
+Catching `TransactionCanceledException` without reading the array loses information about
+which condition failed. Always inspect it.
 
 ---
 
 ## Review Checklist
 
-When reviewing DynamoDB code, flag as **CRITICAL/HIGH**:
-- Multiple independent write calls that should be a single `TransactWriteItems`
+Flag as **CRITICAL/HIGH**:
+- Multiple independent writes that should be a single `TransactWriteItems`
+- Counter update separate from the item mutation it counts
 - Rollback logic in catch blocks using separate write calls
-- Write operations missing `ConditionExpression` when they assume item state (exception: `BatchWriteCommand` which doesn't support it)
-- `TransactWriteItems` callers that don't inspect `CancellationReasons` on failure
-- Sequential create-then-update patterns that leave partial state on failure
+- Writes missing `ConditionExpression` when they assume item state
+- Not inspecting `CancellationReasons` on `TransactionCanceledException`
+- Not handling/retrying `UnprocessedItems` from BatchWrite
+- Sentinel/index item not last in BatchWrite arrays
 - Queries that don't filter for expired TTL items
 
 **Do NOT flag** as bugs:
-- Setting `ttl = 0` instead of calling `DeleteCommand` — this is intentional eventual deletion
-- Best-effort writes after a main transaction — if TTL or self-healing handles failure
-- Fire-and-forget writes with long TTL runways — occasional misses are by design
-- `BatchWriteCommand` without `ConditionExpression` — it's a DynamoDB limitation, not a defect
-- Items still present after their TTL — DynamoDB TTL deletion can lag up to 48 hours
+- `ttl = 0` instead of `DeleteCommand` — intentional eventual deletion
+- Best-effort writes after a main transaction — TTL/self-healing handles failure
+- Fire-and-forget writes with long TTL runways — occasional misses by design
+- `BatchWriteCommand` without `ConditionExpression` — DynamoDB limitation
+- Items still present after TTL — deletion lags up to 48 hours
