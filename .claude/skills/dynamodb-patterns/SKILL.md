@@ -281,6 +281,7 @@ Flag as **CRITICAL/HIGH**:
 - Not handling/retrying `UnprocessedItems` from BatchWrite
 - Sentinel/index item not last in BatchWrite arrays
 - Queries that don't filter for expired TTL items
+- Transactions missing `ReturnValuesOnConditionCheckFailure: 'ALL_OLD'` on condition-bearing items
 
 **Do NOT flag** as bugs:
 - `ttl = 0` instead of `DeleteCommand` — intentional eventual deletion
