@@ -54,12 +54,11 @@ If a finding is similar but not identical to a known/accepted pattern, flag it a
 
 ### 1. Analyze the Changes
 
-Read each changed file in full. Do NOT rely only on the diff — understand the surrounding context:
-- Read the full file for each changed file
-- Grep for related patterns (e.g., if a function was modified, find all callers)
-- Check for related test files
-- Look for configuration or type definitions that might be affected
-- Map the trust boundaries: where does untrusted input enter? Where are authorization checks?
+With 1M context available, read aggressively — full files, not snippets:
+- **Read every changed file in full.** Do NOT rely on the diff alone. You need the complete picture to find how changes interact with existing failure modes.
+- **Read related files in full** — callers, callees, shared state, config. Grep to find them, then read them entirely.
+- **Read related test files in full** — look for missing adversarial test cases.
+- **Map the trust boundaries end-to-end** — read every file from where untrusted input enters to where it's consumed. Authorization checks, validation, and data flow all need full-file context.
 
 ### 2. Perform Adversarial Review
 

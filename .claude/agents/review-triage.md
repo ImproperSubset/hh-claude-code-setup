@@ -55,8 +55,7 @@ Group findings that refer to the same issue (same file, same line range, same ca
 For EVERY unique finding:
 
 **a) Read the actual code:**
-- Read the file at the specified line
-- Read surrounding context (at least 20 lines before and after)
+- Read the entire file, not just the specified line. With 1M context, there is no reason to read snippets — full-file context catches issues that line-range reads miss.
 - Verify the code matches the finding's description
 
 **b) Search for patterns:**

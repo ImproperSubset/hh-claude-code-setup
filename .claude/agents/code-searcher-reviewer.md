@@ -50,11 +50,11 @@ If a finding is similar but not identical to a known/accepted pattern, flag it a
 
 ### 1. Analyze the Changes
 
-Read each changed file in full. Do NOT rely only on the diff — understand the surrounding context:
-- Read the full file for each changed file
-- Grep for related patterns (e.g., if a function was modified, find all callers)
-- Check for related test files
-- Look for configuration or type definitions that might be affected
+With 1M context available, read aggressively — full files, not snippets:
+- **Read every changed file in full.** Do NOT rely on the diff alone. You need the complete file to understand control flow, error handling, and how the change interacts with surrounding code.
+- **Read related files in full** — callers, callees, shared types, config files. Grep to find them, then read them entirely.
+- **Read related test files in full** — understand existing coverage before flagging gaps.
+- Look for configuration or type definitions that might be affected.
 
 ### 2. Perform Quality Review
 

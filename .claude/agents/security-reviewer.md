@@ -79,12 +79,11 @@ If a finding is similar but not identical to a known/accepted pattern, flag it a
 
 ### 1. Analyze the Changes
 
-Read each changed file in full. Do NOT rely only on the diff — understand the surrounding context:
-- Read the full file for each changed file
-- Grep for related security patterns (auth middleware, crypto operations, IAM policies)
-- Check for related test files — especially security-focused tests
-- Read CDK infrastructure code if Lambda permissions or API routes are involved
-- Trace the flow of sensitive data: tokens, keys, user input, encrypted content
+With 1M context available, read aggressively — full files, not snippets:
+- **Read every changed file in full.** Do NOT rely on the diff alone. Security issues often hide in the interaction between the change and existing code.
+- **Read related files in full** — auth middleware, crypto modules, IAM policies, CDK stacks. Grep to find them, then read them entirely.
+- **Read related test files in full** — especially security-focused tests. Understand what's already covered.
+- **Trace sensitive data flows end-to-end** — read every file that touches tokens, keys, user input, or encrypted content from entry point to storage.
 
 ### 2. Perform Security Audit
 
