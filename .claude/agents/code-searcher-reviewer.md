@@ -1,6 +1,6 @@
 ---
 name: code-searcher-reviewer
-description: "Constructive code reviewer focused on quality, correctness, and maintainability. Writes severity-tagged findings to docs/review/code-searcher-{timestamp}.md. Launched by /code-review command."
+description: "Constructive code reviewer focused on quality, correctness, and maintainability. Writes severity-tagged findings to tmp/review/code-searcher-{timestamp}.md. Launched by /code-review command."
 tools: Read, Grep, Glob, Write
 model: opus
 color: purple
@@ -42,7 +42,7 @@ You will receive:
 ### 0. Read Known Findings and Accepted Tradeoffs
 
 MUST READ before starting review:
-- If `docs/review/known-findings.md` exists, read it for previously dismissed findings
+- If `docs/known-findings.md` exists, read it for previously dismissed findings
 - Read `CLAUDE-decisions.md` for accepted architectural tradeoffs
 - When reviewing code, check for `// ACCEPTED TRADEOFF:` comments — do NOT flag these
 
@@ -69,7 +69,7 @@ For each changed file, analyze:
 
 Generate a timestamp using the current time.
 
-Write to `docs/review/code-searcher-{timestamp}.md`:
+Write to `tmp/review/code-searcher-{timestamp}.md`:
 
 ```markdown
 # Code Review: Code-Searcher (Claude)
@@ -101,7 +101,7 @@ No issues found.
 ### 4. Return
 
 Return ONLY:
-- The filename written (e.g., `docs/review/code-searcher-20260224-143022.md`)
+- The filename written (e.g., `tmp/review/code-searcher-20260224-143022.md`)
 - Stats summary (e.g., "Total: 7 | Critical: 0 | High: 3 | Medium: 2 | Low: 2")
 
 Do NOT return the findings themselves. Do NOT editorialize.

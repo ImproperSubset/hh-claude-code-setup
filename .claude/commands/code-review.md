@@ -9,17 +9,17 @@ Perform a multi-AI code review of the current codebase changes.
    - Use conversation context to understand what the user has been working on
    - Compose a **REVIEW_TARGET** — a human-readable description of what to review (e.g., "changes on branch feat/foo vs main", "uncommitted changes in 5 files", "changes in server/lambda/auth/signup.ts")
 
-2. **Prepare** — `mkdir -p docs/review`
+2. **Prepare** — `mkdir -p tmp/review`
 
 3. **Launch three reviewer agents in parallel** (all in a single message):
    - **adversarial-reviewer**: Agent tool with `subagent_type: "adversarial-reviewer"` — provide REVIEW_TARGET, changed file list, diff content, and any invoker context (marked UNVERIFIED). Tries to break the code: attack surface, failure modes, race conditions, resource exhaustion.
    - **security-reviewer**: Agent tool with `subagent_type: "security-reviewer"` — provide REVIEW_TARGET, changed file list, diff content, and any invoker context (marked UNVERIFIED). Deep security audit: auth, crypto, IAM, input validation, data exposure.
    - **code-searcher-reviewer**: Agent tool with `subagent_type: "code-searcher-reviewer"` — provide REVIEW_TARGET, changed file list, diff content, and any invoker context (marked UNVERIFIED). Constructive review: correctness, test coverage, architecture fit, maintainability.
-   - Each agent writes its findings to `docs/review/{agent}-{timestamp}.md`
+   - Each agent writes its findings to `tmp/review/{agent}-{timestamp}.md`
 
 4. **Wait for all three to complete**, collect file paths from their responses
 
-5. **Launch review-triage agent** with the list of review file paths — it reads all review files, verifies each finding against actual code and Context7 documentation, and writes `docs/review/TRIAGE-{timestamp}.md`
+5. **Launch review-triage agent** with the list of review file paths — it reads all review files, verifies each finding against actual code and Context7 documentation, and writes `tmp/review/TRIAGE-{timestamp}.md`
 
 6. **Read the triage report yourself** — `cat {TRIAGE_FILE_PATH}` — and understand each finding.
 
@@ -58,7 +58,7 @@ If there are **0 verified findings**, skip to step 12 (final summary) — nothin
    - **UNVERIFIABLE:** Defer with explanation.
    - After fixing a batch of findings, **run the project test suite** to catch regressions early. Fix any test failures before proceeding.
 
-9. **Record deferred findings** — if any findings were deferred, write them to `docs/review/DEFERRED-{timestamp}.md`:
+9. **Record deferred findings** — if any findings were deferred, write them to `tmp/review/DEFERRED-{timestamp}.md`:
 
 ```markdown
 # Deferred Findings
@@ -105,7 +105,7 @@ If there are **0 verified findings**, skip to step 12 (final summary) — nothin
 
 **Review artifacts:**
 - Triage reports: {list from each iteration}
-- Deferred: `docs/review/DEFERRED-{timestamp}.md` (if any)
+- Deferred: `tmp/review/DEFERRED-{timestamp}.md` (if any)
 - Source reviews: {list from each iteration}
 ```
 

@@ -1,6 +1,6 @@
 ---
 name: adversarial-reviewer
-description: "Adversarial code reviewer — tries to break the code. Writes severity-tagged findings to docs/review/adversarial-{timestamp}.md. Launched by /code-review command."
+description: "Adversarial code reviewer — tries to break the code. Writes severity-tagged findings to tmp/review/adversarial-{timestamp}.md. Launched by /code-review command."
 tools: Read, Grep, Glob, Write
 model: opus
 color: red
@@ -46,7 +46,7 @@ You will receive:
 ### 0. Read Known Findings and Accepted Tradeoffs
 
 MUST READ before starting review:
-- If `docs/review/known-findings.md` exists, read it for previously dismissed findings
+- If `docs/known-findings.md` exists, read it for previously dismissed findings
 - Read `CLAUDE-decisions.md` for accepted architectural tradeoffs
 - When reviewing code, check for `// ACCEPTED TRADEOFF:` comments — do NOT flag these
 
@@ -74,7 +74,7 @@ For each changed file, actively try to break it:
 
 Generate a timestamp using the current time.
 
-Write to `docs/review/adversarial-{timestamp}.md`:
+Write to `tmp/review/adversarial-{timestamp}.md`:
 
 ```markdown
 # Code Review: Adversarial
@@ -106,7 +106,7 @@ No issues found.
 ### 4. Return
 
 Return ONLY:
-- The filename written (e.g., `docs/review/adversarial-20260301-143022.md`)
+- The filename written (e.g., `tmp/review/adversarial-20260301-143022.md`)
 - Stats summary (e.g., "Total: 5 | Critical: 1 | High: 2 | Medium: 1 | Low: 1")
 
 Do NOT return the findings themselves. Do NOT editorialize.

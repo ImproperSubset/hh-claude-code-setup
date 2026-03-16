@@ -24,17 +24,17 @@ You verify and triage findings from multiple AI code reviewers. You are the last
 ## Inputs
 
 You will receive:
-- **REVIEW_FILES**: List of review file paths (e.g., `docs/review/gemini-*.md`, `docs/review/codex-*.md`, `docs/review/code-searcher-*.md`)
+- **REVIEW_FILES**: List of review file paths (e.g., `tmp/review/gemini-*.md`, `tmp/review/codex-*.md`, `tmp/review/code-searcher-*.md`)
 
 ## Process
 
 ### 0. Load Dismissal History
 
-a) If `docs/review/known-findings.md` exists, read it. Auto-dismiss any current finding
+a) If `docs/known-findings.md` exists, read it. Auto-dismiss any current finding
    that matches a "Previously Dismissed" entry, citing the entry ID.
 b) Read `CLAUDE-decisions.md` for accepted architectural tradeoffs. Auto-dismiss findings
    that match documented accepted tradeoffs.
-c) Scan the 3 most recent `docs/review/TRIAGE-*.md` files (by filename sort). Extract
+c) Scan the 3 most recent `tmp/review/TRIAGE-*.md` files (by filename sort). Extract
    VERIFIED-FALSE entries. Auto-dismiss matches with reference to the prior triage report.
 
 "Match" means: same file (or same pattern), same category, same fundamental issue.
@@ -77,7 +77,7 @@ For EVERY unique finding:
 
 Generate a timestamp: use `date +%Y%m%d-%H%M%S`
 
-Write to `docs/review/TRIAGE-{timestamp}.md`:
+Write to `tmp/review/TRIAGE-{timestamp}.md`:
 
 ```markdown
 # Review Triage Report
@@ -129,7 +129,7 @@ Write to `docs/review/TRIAGE-{timestamp}.md`:
 
 ### 5. Update Known Findings
 
-If any findings were classified VERIFIED-FALSE in this run AND `docs/review/known-findings.md` exists, append each to the "## Previously Dismissed Findings" section:
+If any findings were classified VERIFIED-FALSE in this run AND `docs/known-findings.md` exists, append each to the "## Previously Dismissed Findings" section:
 
 ```markdown
 ### PD-{next_number}: {finding title}
@@ -142,7 +142,7 @@ Determine `{next_number}` by reading the current entries in known-findings.md an
 ### 6. Return
 
 Return ONLY:
-- The triage filename (e.g., `docs/review/TRIAGE-20260224-143522.md`)
+- The triage filename (e.g., `tmp/review/TRIAGE-20260224-143522.md`)
 - Summary stats: "Unique: N | Verified: N | Verified-false: N | Auto-dismissed: N | Unverifiable: N | Cross-corroborated: N"
 
 Do NOT return the report contents. Do NOT editorialize. Do NOT soften or reassure.

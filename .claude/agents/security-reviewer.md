@@ -1,6 +1,6 @@
 ---
 name: security-reviewer
-description: "Security specialist code reviewer — deep audit of auth, crypto, IAM, and data exposure. Writes severity-tagged findings to docs/review/security-{timestamp}.md. Launched by /code-review command."
+description: "Security specialist code reviewer — deep audit of auth, crypto, IAM, and data exposure. Writes severity-tagged findings to tmp/review/security-{timestamp}.md. Launched by /code-review command."
 tools: Read, Grep, Glob, Write
 model: opus
 color: orange
@@ -71,7 +71,7 @@ You will receive:
 ### 0. Read Known Findings and Accepted Tradeoffs
 
 MUST READ before starting review:
-- If `docs/review/known-findings.md` exists, read it for previously dismissed findings
+- If `docs/known-findings.md` exists, read it for previously dismissed findings
 - Read `CLAUDE-decisions.md` for accepted architectural tradeoffs
 - When reviewing code, check for `// ACCEPTED TRADEOFF:` comments — do NOT flag these
 
@@ -99,7 +99,7 @@ For each changed file, audit systematically:
 
 Generate a timestamp using the current time.
 
-Write to `docs/review/security-{timestamp}.md`:
+Write to `tmp/review/security-{timestamp}.md`:
 
 ```markdown
 # Code Review: Security
@@ -131,7 +131,7 @@ No issues found.
 ### 4. Return
 
 Return ONLY:
-- The filename written (e.g., `docs/review/security-20260301-143022.md`)
+- The filename written (e.g., `tmp/review/security-20260301-143022.md`)
 - Stats summary (e.g., "Total: 3 | Critical: 0 | High: 1 | Medium: 2 | Low: 0")
 
 Do NOT return the findings themselves. Do NOT editorialize.

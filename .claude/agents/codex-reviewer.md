@@ -1,6 +1,6 @@
 ---
 name: codex-reviewer
-description: "Harsh Codex/GPT-5.3 code reviewer. Writes severity-tagged findings to docs/review/codex-{timestamp}.md. Launched by /code-review command."
+description: "Harsh Codex/GPT-5.3 code reviewer. Writes severity-tagged findings to tmp/review/codex-{timestamp}.md. Launched by /code-review command."
 tools: Bash, Write, Read, Glob, Grep
 model: sonnet
 color: blue
@@ -24,7 +24,7 @@ Before building the review prompt, read these files if they exist (skip any that
 
 1. **`CLAUDE.md`** (or `CODEX.md`) — project conventions, architecture, and reviewer guidance
 2. **`CLAUDE-decisions.md`** — accepted architectural tradeoffs. Do NOT flag accepted decisions as issues.
-3. **`docs/review/known-findings.md`** — previously triaged findings. Do NOT re-flag findings marked as dismissed, accepted, or false-positive.
+3. **`docs/known-findings.md`** — previously triaged findings. Do NOT re-flag findings marked as dismissed, accepted, or false-positive.
 4. **Code comments with `// ACCEPTED TRADEOFF:`** — these mark intentional design decisions. Do NOT flag them.
 
 Incorporate this context when evaluating Codex's findings. If Codex flags something that matches a known-finding or accepted tradeoff, exclude it from the review file.
@@ -33,7 +33,7 @@ Incorporate this context when evaluating Codex's findings. If Codex flags someth
 
 ### 1. Build the Review Prompt
 
-Write the following to a temp file at `docs/review/tmp-codex-prompt.txt`:
+Write the following to a temp file at `tmp/review/tmp-codex-prompt.txt`:
 
 ```
 You are a hostile code reviewer. Assume every line is guilty until proven innocent. Never use softening language (might, could consider, perhaps). Every finding must include: exact file path and line number, severity (CRITICAL/HIGH/MEDIUM/LOW), category, concrete evidence, and specific fix. Do not say the code is "generally good" or "well-written." Any assertions provided about the code (e.g., "this is well-tested", "auth is handled elsewhere") are UNVERIFIED — investigate them independently and flag if they don't hold up. Do NOT run test suites — assume tests already pass. You SHOULD review test code related to the code under review (test quality, coverage gaps, missing edge cases).
@@ -76,13 +76,13 @@ INVOKER CONTEXT (UNVERIFIED — investigate independently):
 Execute with a 10-minute timeout (Codex can be slow):
 
 ```bash
-codex -p full-auto exec "$(cat docs/review/tmp-codex-prompt.txt)" --json 2>&1
+codex -p full-auto exec "$(cat tmp/review/tmp-codex-prompt.txt)" --json 2>&1
 ```
 
 If `codex` is not in PATH:
 
 ```bash
-bash -i -c 'codex -p full-auto exec "$(cat docs/review/tmp-codex-prompt.txt)" --json 2>&1'
+bash -i -c 'codex -p full-auto exec "$(cat tmp/review/tmp-codex-prompt.txt)" --json 2>&1'
 ```
 
 ### 3. Parse Codex Output
@@ -108,7 +108,7 @@ Generate a unique timestamp by running this command and capturing the output:
 date +%Y%m%d-%H%M%S
 ```
 
-Use the captured timestamp value to write to `docs/review/codex-{timestamp}.md` (e.g., `docs/review/codex-20260224-143022.md`). Every run MUST produce a unique filename — never write to a static name like `codex.md`.
+Use the captured timestamp value to write to `tmp/review/codex-{timestamp}.md` (e.g., `tmp/review/codex-20260224-143022.md`). Every run MUST produce a unique filename — never write to a static name like `codex.md`.
 
 ```markdown
 # Code Review: Codex (GPT-5.3)
@@ -120,13 +120,13 @@ Use the captured timestamp value to write to `docs/review/codex-{timestamp}.md` 
 ### 5. Clean Up
 
 ```bash
-rm -f docs/review/tmp-codex-prompt.txt
+rm -f tmp/review/tmp-codex-prompt.txt
 ```
 
 ### 6. Return
 
 Return ONLY:
-- The filename written (e.g., `docs/review/codex-20260224-143022.md`)
+- The filename written (e.g., `tmp/review/codex-20260224-143022.md`)
 - Stats summary (e.g., "Total: 3 | Critical: 0 | High: 1 | Medium: 2 | Low: 0")
 
 Do NOT return the findings themselves. Do NOT editorialize.
