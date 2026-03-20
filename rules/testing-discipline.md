@@ -24,6 +24,16 @@ Investigate every failure. Do not move on until you understand why it failed.
 
 **Do NOT** delete or disable tests to make the suite green.
 
+**Do NOT** comment out assertions that fail and "track" them as known issues. The assertion is doing its job — fix the code it's catching.
+
+**Do NOT** remove a precondition check because it fails (e.g., removing a "meta-posts exist" assertion because they don't exist yet). Fix the precondition (e.g., move the test after the test that creates the data).
+
+**Do NOT** remove an IDB/DB count assertion because a background process repopulates the data. Fix the timing (e.g., wait for the background process to complete before clearing).
+
+**Do NOT** replace a specific assertion with a weaker one to avoid a failure. If `toBe(0)` fails, find out why the count isn't 0.
+
+**When a new assertion fails, STOP and tell the user.** Say: "This assertion found a real problem. Here's what it is." Then fix the code or get direction.
+
 **If a failure requires infrastructure changes** (IAM policy, CDK deploy, env config), make those changes. Don't paper over the failure in test code.
 
 ## Before claiming work is done

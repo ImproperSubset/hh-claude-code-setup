@@ -11,13 +11,14 @@ Perform a multi-AI code review of the current codebase changes.
 
 2. **Prepare** — `mkdir -p tmp/review`
 
-3. **Launch three reviewer agents in parallel** (all in a single message):
+3. **Launch four reviewer agents in parallel** (all in a single message):
    - **adversarial-reviewer**: Agent tool with `subagent_type: "adversarial-reviewer"` — provide REVIEW_TARGET, changed file list, diff content, and any invoker context (marked UNVERIFIED). Tries to break the code: attack surface, failure modes, race conditions, resource exhaustion.
    - **security-reviewer**: Agent tool with `subagent_type: "security-reviewer"` — provide REVIEW_TARGET, changed file list, diff content, and any invoker context (marked UNVERIFIED). Deep security audit: auth, crypto, IAM, input validation, data exposure.
    - **code-searcher-reviewer**: Agent tool with `subagent_type: "code-searcher-reviewer"` — provide REVIEW_TARGET, changed file list, diff content, and any invoker context (marked UNVERIFIED). Constructive review: correctness, test coverage, architecture fit, maintainability.
+   - **test-assertion-reviewer**: Agent tool with `subagent_type: "test-assertion-reviewer"` — provide REVIEW_TARGET, changed file list, diff content, and any invoker context (marked UNVERIFIED). Test assertion quality: ensures tests actually prove what they claim, catches swallowed failures, phantom assertions, missing persistence checks, weak matchers.
    - Each agent writes its findings to `tmp/review/{agent}-{timestamp}.md`
 
-4. **Wait for all three to complete**, collect file paths from their responses
+4. **Wait for all four to complete**, collect file paths from their responses
 
 5. **Launch review-triage agent** with the list of review file paths — it reads all review files, verifies each finding against actual code and Context7 documentation, and writes `tmp/review/TRIAGE-{timestamp}.md`
 
@@ -47,6 +48,7 @@ Perform a multi-AI code review of the current codebase changes.
 - `{adversarial_file}`
 - `{security_file}`
 - `{code-searcher_file}`
+- `{test-assertion_file}`
 ```
 
 If there are **0 verified findings**, skip to step 12 (final summary) — nothing to fix.
